@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>도플러 효과 행성 시선속도 시뮬레이션</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0a0a1a;--panel:#12122a;--card:#1a1a3a;--cyan:#00e5ff;--yellow:#ffd700;--red:#ff4444;--orange:#ff9800;--text:#e0e0e0;--dim:#8888aa;--border:#2a2a4a}
+html,body{background:var(--bg);color:var(--text);font-family:'Noto Sans KR',system-ui,sans-serif;overflow:hidden;height:100vh}
+header{background:linear-gradient(135deg,#12122a,#1a1040);border-bottom:1px solid var(--border);padding:10px 24px;text-align:center;height:50px}
+header h1{font-size:1.15rem;font-weight:700;background:linear-gradient(90deg,var(--cyan),var(--yellow));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+header p{font-size:.7rem;color:var(--dim);margin-top:1px}
+.grid{display:grid;grid-template-columns:260px 1fr 360px;height:calc(100vh - 50px)}
+.panel{padding:11px;overflow-y:auto;overflow-x:hidden;border-right:1px solid var(--border);background:var(--panel)}
+.panel:last-child{border-right:none}
+.ptitle{font-size:.76rem;font-weight:700;color:var(--cyan);letter-spacing:.5px;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+.sg{margin-bottom:9px}
+.sl{display:flex;justify-content:space-between;font-size:.72rem;color:var(--dim);margin-bottom:2px}
+.sl .v{color:var(--cyan);font-weight:700;font-size:.76rem}
+input[type=range]{-webkit-appearance:none;width:100%;height:5px;border-radius:3px;background:var(--border);outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;background:var(--cyan);cursor:pointer;box-shadow:0 0 6px rgba(0,229,255,.5)}
+input[type=range]::-moz-range-thumb{width:15px;height:15px;border-radius:50%;background:var(--cyan);cursor:pointer;border:none}
+.wl-sel{margin-bottom:8px}
+.wl-sel label{display:block;font-size:.7rem;color:var(--dim);cursor:pointer;padding:2px 7px;border-radius:4px;transition:background .2s}
+.wl-sel label:hover{background:var(--card)}
+.wl-sel input[type=radio]{accent-color:var(--cyan);margin-right:5px}
+.pbtn{display:block;width:100%;padding:5px 9px;margin-bottom:3px;background:var(--card);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:.68rem;font-family:inherit;cursor:pointer;transition:all .2s;text-align:left}
+.pbtn:hover{border-color:var(--cyan);background:#1e1e4a}
+.pbtn.act{border-color:var(--yellow);background:rgba(255,215,0,.08)}
+.pbtn .n{font-weight:700;color:var(--cyan)}.pbtn.act .n{color:var(--yellow)}
+.cv{background:var(--card);border-radius:7px;padding:7px 9px;font-size:.68rem}
+.cr{display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.cr:last-child{border-bottom:none}
+.cr .l{color:var(--dim)}.cr .val{color:var(--yellow);font-weight:700;font-variant-numeric:tabular-nums}
+.wb{padding:0;max-height:0;overflow:hidden;border-radius:5px;margin-bottom:0;font-size:.68rem;line-height:1.5;opacity:0;transition:all .4s}
+.wb.on{padding:7px 9px;max-height:200px;margin-bottom:7px;opacity:1}
+.wb.r{background:rgba(255,50,50,.14);border:1px solid var(--red);color:#ff8888}
+.wb.y{background:rgba(255,152,0,.11);border:1px solid var(--orange);color:#ffcc66}
+.cpanel{display:flex;flex-direction:column;padding:8px;border-right:1px solid var(--border);background:var(--bg);overflow:hidden}
+#canvas-orbit{display:block;width:100%;flex:1;border-radius:7px}
+.rp{background:var(--panel)}
+.gs{margin-bottom:10px}
+.gt{font-size:.72rem;font-weight:700;color:var(--cyan);margin-bottom:4px}
+.gs canvas{display:block;width:100%;border-radius:5px}
+.vals-table{width:100%;border-collapse:collapse;font-size:.65rem;margin-top:4px}
+.vals-table th{background:var(--card);color:var(--cyan);padding:4px 5px;text-align:center;font-weight:500;border:1px solid var(--border)}
+.vals-table td{padding:4px 5px;text-align:center;border:1px solid var(--border);font-variant-numeric:tabular-nums}
+.det-fail{color:var(--red);font-weight:700}
+.cn{background:rgba(0,229,255,.1);border:1px solid rgba(0,229,255,.3);border-radius:5px;padding:6px 7px;font-size:.64rem;color:#88ccee;margin-bottom:6px;line-height:1.4;display:none}
+.pic{display:none;background:linear-gradient(135deg,rgba(26,26,58,.95),rgba(18,18,42,.98));border:1px solid rgba(0,229,255,.25);border-radius:7px;padding:9px 10px;margin-top:5px;font-size:.65rem;line-height:1.6;color:var(--text);animation:fi .3s ease}
+.pic.on{display:block}
+.pic .it{font-weight:700;color:var(--yellow);font-size:.76rem;margin-bottom:4px}
+.pic .is{color:var(--cyan);font-size:.64rem;margin-bottom:5px;font-style:italic}
+.pic .ist{display:grid;grid-template-columns:1fr 1fr;gap:2px 8px;margin:5px 0;padding:5px 7px;background:rgba(0,0,0,.25);border-radius:4px;font-size:.62rem}
+.pic .ist span{color:var(--dim)}.pic .ist b{color:var(--cyan)}
+.pic .ig{margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,.06);color:#bbbbdd;font-size:.62rem}
+.pic .cb{float:right;background:none;border:none;color:var(--dim);cursor:pointer;font-size:.82rem;padding:0 2px;line-height:1}
+.pic .cb:hover{color:var(--cyan)}
+@keyframes fi{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)}}
+.me{background:linear-gradient(135deg,rgba(26,26,58,.9),rgba(12,12,30,.95));border:1px solid var(--border);border-radius:7px;padding:9px 10px;margin-top:8px;font-size:.63rem;line-height:1.65;color:#aac}
+.me h3{font-size:.72rem;color:var(--cyan);margin-bottom:5px;font-weight:700}
+.me .st{display:flex;gap:6px;margin-bottom:4px;align-items:flex-start}
+.me .sn{flex-shrink:0;width:17px;height:17px;border-radius:50%;background:rgba(0,229,255,.15);border:1px solid rgba(0,229,255,.3);color:var(--cyan);font-size:.58rem;font-weight:700;display:flex;align-items:center;justify-content:center}
+.me em{color:var(--yellow);font-style:normal;font-weight:500}
+.panel::-webkit-scrollbar{width:4px}.panel::-webkit-scrollbar-track{background:transparent}.panel::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+</style>
+</head>
+<body>
+<header>
+  <h1>🔭 도플러 효과 기반 외계행성 시선속도 시뮬레이션</h1>
+  <p>Radial Velocity Method — Doppler Spectroscopy Simulation</p>
+</header>
+<div class="grid">
+  <div class="panel" id="lp">
+    <div class="ptitle">⚙️ 파라미터 설정</div>
+    <div class="wb r" id="wr"></div>
+    <div class="wb y" id="wy"></div>
+    <div class="sg"><div class="sl"><span>항성 질량 (M☉)</span><span class="v" id="v-sm">1.00</span></div>
+      <input type="range" id="s-sm" min="0.5" max="3.0" step="0.01" value="1.0"></div>
+    <div class="sg"><div class="sl"><span>행성 질량 (M<sub>Jup</sub>)</span><span class="v" id="v-pm">1.00</span></div>
+      <input type="range" id="s-pm" min="0.1" max="13.0" step="0.1" value="1.0"></div>
+    <div class="sg"><div class="sl"><span>궤도 반지름 (AU)</span><span class="v" id="v-or">1.00</span></div>
+      <input type="range" id="s-or" min="0.1" max="5.0" step="0.01" value="1.0"></div>
+    <div class="sg"><div class="sl"><span>경사각 i (°)</span><span class="v" id="v-inc">90</span></div>
+      <input type="range" id="s-inc" min="0" max="90" step="1" value="90"></div>
+    <div class="sg"><div class="sl"><span>관측 거리 (pc)</span><span class="v" id="v-dist">10.0</span></div>
+      <input type="range" id="s-dist" min="1" max="200" step="0.5" value="10"></div>
+    <div class="wl-sel">
+      <div class="ptitle" style="font-size:.68rem;margin-top:2px">🌈 기준 파장</div>
+      <label><input type="radio" name="wl" value="656.3" checked> H-α (656.3 nm)</label>
+      <label><input type="radio" name="wl" value="486.1"> H-β (486.1 nm)</label>
+      <label><input type="radio" name="wl" value="589.0"> Na-D (589.0 nm)</label>
+    </div>
+    <div style="margin-bottom:8px">
+      <div class="ptitle" style="font-size:.68rem">🪐 외계행성 프리셋</div>
+      <button class="pbtn" data-p="51peg"><span class="n">51 Pegasi b</span> — 최초 발견 열목성</button>
+      <button class="pbtn" data-p="hd209"><span class="n">HD 209458 b</span> — 통과 관측 확인</button>
+      <button class="pbtn" data-p="trappist"><span class="n">TRAPPIST-1 b</span> — 초저질량 항성계</button>
+      <div class="cn" id="cn"></div>
+      <div id="pic" class="pic"></div>
+    </div>
+    <div class="ptitle" style="font-size:.68rem">📊 계산 결과</div>
+    <div class="cv">
+      <div class="cr"><span class="l">공전 주기 T</span><span class="val" id="c-T">—</span></div>
+      <div class="cr"><span class="l">궤도 속도 v<sub>orb</sub></span><span class="val" id="c-vo">—</span></div>
+      <div class="cr"><span class="l">최대 시선속도 v<sub>r,max</sub></span><span class="val" id="c-vr">—</span></div>
+      <div class="cr"><span class="l">도플러 편이 Δλ</span><span class="val" id="c-dl">—</span></div>
+      <div class="cr" style="border-top:1px solid rgba(255,255,255,.07);margin-top:2px;padding-top:3px">
+        <span class="l">질량비 m<sub>p</sub>/M<sub>★</sub></span><span class="val" id="c-mr">—</span></div>
+      <div class="cr"><span class="l">항성 워블 반지름</span><span class="val" id="c-sw" style="color:#ffd700">—</span></div>
+      <div class="cr"><span class="l">겉보기 각크기</span><span class="val" id="c-ang" style="color:#88aaff">—</span></div>
+    </div>
+  </div>
+  <div class="cpanel" id="cp">
+    <div class="ptitle" style="color:var(--cyan)">🌌 궤도 애니메이션</div>
+    <canvas id="canvas-orbit"></canvas>
+  </div>
+  <div class="panel rp" id="rp">
+    <div class="ptitle">📈 관측 데이터 분석</div>
+    <div class="gs"><div class="gt">시선속도 곡선 (Radial Velocity)</div><canvas id="canvas-rv"></canvas></div>
+    <div class="gs"><div class="gt">항성 스펙트럼 도플러 편이</div><canvas id="canvas-sp"></canvas>
+      <div id="sp-lbl" style="font-size:.66rem;color:var(--dim);margin-top:3px;text-align:center">—</div></div>
+    <div class="gs">
+      <div class="gt">물리량 요약</div>
+      <table class="vals-table">
+        <thead><tr><th>항목</th><th>값</th></tr></thead>
+        <tbody>
+          <tr><td>최대 시선속도</td><td id="t-vr">—</td></tr>
+          <tr><td>공전 주기</td><td id="t-T">—</td></tr>
+          <tr><td>도플러 편이 Δλ</td><td id="t-dl">—</td></tr>
+          <tr><td>관측 거리</td><td id="t-dist">—</td></tr>
+          <tr><td>겉보기 각거리</td><td id="t-ang">—</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="me">
+      <h3>💡 시선속도법이란?</h3>
+      <div class="st"><div class="sn">1</div><div>행성이 항성을 공전하면, 항성도 <em>공통 질량중심</em> 주위로 미세하게 흔들립니다.</div></div>
+      <div class="st"><div class="sn">2</div><div>항성이 다가오면 <em>청색편이</em>, 멀어지면 <em>적색편이</em>가 발생합니다.</div></div>
+      <div class="st"><div class="sn">3</div><div>이 편이의 주기적 변화로 행성의 <em>질량·궤도·주기</em>를 알 수 있습니다.</div></div>
+      <div class="st"><div class="sn">4</div><div><em>경사각 i=0°</em>이면 시선속도가 0이 되어 검출 불가합니다.</div></div>
+      <div style="margin-top:5px;color:#888;font-size:.58rem">※ 1995년 51 Pegasi b 최초 발견 → 2019 노벨 물리학상</div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== 물리 상수 ===== */
+const G=6.674e-11, c=3e8, Msun=1.989e30, Mjup=1.898e27, AU=1.496e11, DAY=86400, pc_m=3.0857e16;
+
+/* ===== 상태 ===== */
+const S = { sm:1, pm:1, or:1, inc:90, dist:10, lam0:656.3, T:0, vorb:0, vrmax:0, dl:0, phase:0 };
+
+/* ===== DOM ===== */
+const sl = {
+  sm:document.getElementById('s-sm'), pm:document.getElementById('s-pm'),
+  or:document.getElementById('s-or'), inc:document.getElementById('s-inc'),
+  dist:document.getElementById('s-dist')
+};
+const vl = {
+  sm:document.getElementById('v-sm'), pm:document.getElementById('v-pm'),
+  or:document.getElementById('v-or'), inc:document.getElementById('v-inc'),
+  dist:document.getElementById('v-dist')
+};
+const wr=document.getElementById('wr'), wy=document.getElementById('wy');
+const cO=document.getElementById('canvas-orbit'), cR=document.getElementById('canvas-rv'), cS=document.getElementById('canvas-sp');
+const xO=cO.getContext('2d'), xR=cR.getContext('2d'), xS=cS.getContext('2d');
+
+/* ===== 캔버스 크기 ===== */
+function setupSizes(){
+  const d=devicePixelRatio||1;
+  const r=cO.parentElement.getBoundingClientRect();
+  const ow=r.width-16, oh=r.height-28;
+  cO.style.width=ow+'px'; cO.style.height=oh+'px';
+  cO.width=Math.round(ow*d); cO.height=Math.round(oh*d);
+  const rw=cR.parentElement.getBoundingClientRect().width;
+  cR.style.width=rw+'px'; cR.style.height='170px';
+  cR.width=Math.round(rw*d); cR.height=Math.round(170*d);
+  const sw=cS.parentElement.getBoundingClientRect().width;
+  cS.style.width=sw+'px'; cS.style.height='60px';
+  cS.width=Math.round(sw*d); cS.height=Math.round(60*d);
+}
+
+/* ===== 물리 계산 ===== */
+function calc(){
+  const Ms=S.sm*Msun, mp=S.pm*Mjup, a=S.or*AU, iR=S.inc*Math.PI/180;
+  S.vorb = Math.sqrt(G*Ms/a);
+  S.T = 2*Math.PI*Math.sqrt(a*a*a/(G*Ms));
+  S.vrmax = S.vorb*(mp/Ms)*Math.sin(iR);
+  S.dl = S.lam0*S.vrmax/c;
+}
+function vrAt(th){ return S.vrmax*Math.sin(th); }
+
+/* ===== UI 갱신 ===== */
+function updVals(){
+  vl.sm.textContent = parseFloat(sl.sm.value).toFixed(2);
+  vl.pm.textContent = parseFloat(sl.pm.value).toFixed(1);
+  vl.or.textContent = parseFloat(sl.or.value).toFixed(2);
+  vl.inc.textContent = sl.inc.value;
+  vl.dist.textContent = parseFloat(sl.dist.value).toFixed(1);
+
+  const Ms=S.sm*Msun, mp=S.pm*Mjup, a=S.or*AU;
+  const ratio=mp/Ms, aStar=a*mp/(Ms+mp), aKm=aStar/1000;
+  const dpc=S.dist, dly=(dpc*3.2616).toFixed(1);
+  const angMas = (a/(dpc*pc_m))*(180/Math.PI)*3600*1000;
+
+  document.getElementById('c-T').textContent = (S.T/DAY).toFixed(2)+' 일';
+  document.getElementById('c-vo').textContent = (S.vorb/1000).toFixed(2)+' km/s';
+  document.getElementById('c-vr').textContent = S.vrmax.toFixed(2)+' m/s';
+  document.getElementById('c-dl').textContent = S.dl.toExponential(3)+' nm';
+  document.getElementById('c-mr').textContent = ratio.toExponential(2);
+  document.getElementById('c-sw').textContent = aKm<1e6 ? aKm.toFixed(0)+' km' : (aStar/AU).toExponential(2)+' AU';
+  document.getElementById('c-ang').textContent = angMas.toFixed(2)+' mas';
+
+  if(S.inc===0){
+    document.getElementById('t-vr').innerHTML='<span class="det-fail">0 (검출 불가)</span>';
+    document.getElementById('t-dl').innerHTML='<span class="det-fail">0 (검출 불가)</span>';
+  } else {
+    document.getElementById('t-vr').textContent = S.vrmax.toFixed(2)+' m/s';
+    document.getElementById('t-dl').textContent = S.dl.toExponential(3)+' nm';
+  }
+  document.getElementById('t-T').textContent = (S.T/DAY).toFixed(2)+' 일';
+  document.getElementById('t-dist').textContent = dpc.toFixed(1)+' pc ('+dly+' 광년)';
+  document.getElementById('t-ang').textContent = angMas.toFixed(2)+' mas';
+}
+function updWarn(){
+  const i=S.inc, si=Math.sin(i*Math.PI/180);
+  if(i===0){ wr.innerHTML='⚠️ <b>경사각 0°</b> : 시선속도 = 0 → 검출 불가'; wr.classList.add('on'); wy.classList.remove('on'); }
+  else if(i<10){ wy.innerHTML='⚠️ <b>경사각 '+i+'°</b> : sin(i)='+si.toFixed(4)+' → 신호 매우 약함'; wy.classList.add('on'); wr.classList.remove('on'); }
+  else { wr.classList.remove('on'); wy.classList.remove('on'); }
+}
+
+/* ===== RV 그래프 ===== */
+function drawRV(){
+  const d=devicePixelRatio||1, W=cR.width/d, H=cR.height/d, ctx=xR;
+  ctx.setTransform(d,0,0,d,0,0);
+  ctx.fillStyle='#1a1a3a'; ctx.fillRect(0,0,W,H);
+  const m={t:20,r:10,b:26,l:48}, pW=W-m.l-m.r, pH=H-m.t-m.b;
+  const Td=S.T/DAY, xMax=Td*2;
+  let yMax=Math.max(S.vrmax*1.3,2);
+  ctx.strokeStyle='rgba(255,255,255,.06)'; ctx.lineWidth=.5;
+  for(let i=0;i<=4;i++){
+    ctx.beginPath();ctx.moveTo(m.l,m.t+pH*i/4);ctx.lineTo(m.l+pW,m.t+pH*i/4);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(m.l+pW*i/4,m.t);ctx.lineTo(m.l+pW*i/4,m.t+pH);ctx.stroke();
+  }
+  ctx.strokeStyle='rgba(255,255,255,.18)';ctx.lineWidth=1;ctx.setLineDash([4,4]);
+  ctx.beginPath();ctx.moveTo(m.l,m.t+pH/2);ctx.lineTo(m.l+pW,m.t+pH/2);ctx.stroke();ctx.setLineDash([]);
+  ctx.strokeStyle='#4488ff';ctx.lineWidth=2.5;ctx.beginPath();
+  for(let px=0;px<=pW;px++){
+    const th=(px/pW)*4*Math.PI, v=vrAt(th), x=m.l+px, y=m.t+pH/2-(v/yMax)*(pH/2);
+    px===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+  const cp=(S.phase%(4*Math.PI))/(4*Math.PI), mx=m.l+cp*pW;
+  if(mx>=m.l&&mx<=m.l+pW){
+    ctx.strokeStyle='rgba(255,215,0,.35)';ctx.lineWidth=1.5;ctx.setLineDash([3,3]);
+    ctx.beginPath();ctx.moveTo(mx,m.t);ctx.lineTo(mx,m.t+pH);ctx.stroke();ctx.setLineDash([]);
+    const cv=vrAt(S.phase%(4*Math.PI)), dy=m.t+pH/2-(cv/yMax)*(pH/2);
+    ctx.fillStyle='#ffd700';ctx.beginPath();ctx.arc(mx,dy,5,0,2*Math.PI);ctx.fill();
+    ctx.strokeStyle='rgba(255,215,0,.7)';ctx.lineWidth=1.5;ctx.stroke();
+  }
+  ctx.fillStyle='#8888aa';ctx.font='9px system-ui';ctx.textAlign='center';
+  for(let i=0;i<=4;i++) ctx.fillText((xMax*i/4).toFixed(1),m.l+pW*i/4,H-5);
+  ctx.fillText('시간 (일)',m.l+pW/2,H-15);
+  ctx.textAlign='right';
+  for(let i=0;i<=4;i++) ctx.fillText((yMax-(2*yMax*i/4)).toFixed(1),m.l-4,m.t+pH*i/4+4);
+  ctx.save();ctx.translate(9,m.t+pH/2);ctx.rotate(-Math.PI/2);ctx.textAlign='center';ctx.fillText('v_r (m/s)',0,0);ctx.restore();
+}
+
+/* ===== 스펙트럼 ===== */
+function drawSP(curVr){
+  const d=devicePixelRatio||1, W=cS.width/d, H=cS.height/d, ctx=xS;
+  ctx.setTransform(d,0,0,d,0,0);
+  ctx.fillStyle='#1a1a3a';ctx.fillRect(0,0,W,H);
+  const bx=22,bw=W-44,by=12,bh=20;
+  const gr=ctx.createLinearGradient(bx,0,bx+bw,0);
+  gr.addColorStop(0,'#380082');gr.addColorStop(.12,'#4400ff');gr.addColorStop(.22,'#0044ff');
+  gr.addColorStop(.31,'#00ccff');gr.addColorStop(.4,'#00ff44');gr.addColorStop(.53,'#88ff00');
+  gr.addColorStop(.62,'#ffff00');gr.addColorStop(.72,'#ff8800');gr.addColorStop(.84,'#ff2200');gr.addColorStop(1,'#700000');
+  ctx.fillStyle=gr;ctx.fillRect(bx,by,bw,bh);
+  ctx.fillStyle='#8888aa';ctx.font='7px system-ui';ctx.textAlign='center';
+  [400,450,500,550,600,650,700].forEach(l=>{
+    const f=(l-380)/320,x=bx+f*bw;ctx.fillText(l,x,by+bh+9);
+    ctx.strokeStyle='rgba(255,255,255,.25)';ctx.lineWidth=.5;ctx.beginPath();ctx.moveTo(x,by+bh);ctx.lineTo(x,by+bh+2);ctx.stroke();
+  });
+  const l0x=bx+((S.lam0-380)/320)*bw;
+  ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=1;ctx.setLineDash([2,2]);
+  ctx.beginPath();ctx.moveTo(l0x,by);ctx.lineTo(l0x,by+bh);ctx.stroke();ctx.setLineDash([]);
+  const dln=S.lam0*curVr/c, cl=S.lam0+dln;
+  const mkx=bx+Math.max(0,Math.min(1,(cl-380)/320))*bw;
+  const mc=curVr<-.01?'#4488ff':(curVr>.01?'#ff4444':'#fff');
+  ctx.fillStyle=mc;ctx.beginPath();ctx.moveTo(mkx,by-1);ctx.lineTo(mkx-4,by-7);ctx.lineTo(mkx+4,by-7);ctx.closePath();ctx.fill();
+  ctx.strokeStyle=mc;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(mkx,by);ctx.lineTo(mkx,by+bh);ctx.stroke();
+  const dir=curVr<-.01?'◀ 청색편이':(curVr>.01?'적색편이 ▶':'편이 없음');
+  document.getElementById('sp-lbl').innerHTML='파장: <b style="color:'+mc+'">'+cl.toFixed(4)+' nm</b> (Δλ '+dln.toExponential(3)+' nm) <span style="color:'+mc+'">'+dir+'</span>';
+}
+
+/* ===== 궤도 애니메이션 ===== */
+let bgS=null;
+function mkBg(W,H){
+  if(bgS&&bgS.w===W&&bgS.h===H) return;
+  bgS={w:W,h:H,l:[]};
+  let s=54321; const r=()=>{s=(s*16807)%2147483647;return(s-1)/2147483646};
+  for(let i=0;i<120;i++) bgS.l.push({x:r()*W,y:r()*H,r:r()*1.2+.3,a:r()*.35+.12});
+}
+
+function drawOrbit(){
+  const d=devicePixelRatio||1, W=cO.width/d, H=cO.height/d, ctx=xO;
+  ctx.setTransform(d,0,0,d,0,0);
+  ctx.fillStyle='#060614'; ctx.fillRect(0,0,W,H);
+  mkBg(W,H);
+  bgS.l.forEach(s=>{ctx.fillStyle=`rgba(200,210,255,${s.a})`;ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,2*Math.PI);ctx.fill();});
+
+  const cx=W/2, cy=H*.40;
+  const iR=S.inc*Math.PI/180, cosI=Math.cos(iR), phase=S.phase;
+  const Mkg=S.sm*Msun, mpkg=S.pm*Mjup;
+
+  /* ---- 핵심: 겉보기 각크기 기반 궤도 크기 ----
+     실제 겉보기 각크기 θ = a / d  (rad)
+     이를 화면에 매핑: 기준점을 or=1AU, dist=10pc 로 잡고
+     화면 반지름 = baseSize * (or / dist) / (1AU / 10pc)
+     = baseSize * or * 10 / dist
+     → 궤도 반지름을 키우면 커지고, 거리를 멀리하면 작아짐 */
+  const baseSize = Math.min(W,H) * 0.28;
+  const angScale = (S.or * 10) / S.dist; // or=1,dist=10 → 1.0
+  // 너무 크거나 작으면 클램프, 최소 15px ~ 최대 baseSize*1.5
+  const pOA = Math.max(15, Math.min(baseSize*1.5, baseSize * angScale));
+  const pOB = pOA * cosI;
+
+  /* ---- 항성 궤도: 질량비 비례, 시각적 과장 ---- */
+  const realR = mpkg / Mkg;
+  const visR = Math.sqrt(realR) * 2.5;
+  const sOA = Math.max(2, Math.min(pOA*0.45, pOA * visR));
+  const sOB = sOA * cosI;
+
+  /* ---- 천체 크기 ----
+     항성: 질량에 비례
+     행성: 질량에 비례 (선형으로, 확실한 크기 차이) */
+  const starR = (8 + S.sm * 6) * Math.min(1, pOA / 40); // 궤도 작으면 별도 작게
+  // 행성: 0.1 Mjup → 3px, 1 Mjup → 7px, 13 Mjup → 16px (선형 + 최소)
+  const pR = Math.max(2.5, 3 + S.pm * 1.0) * Math.min(1, pOA / 40);
+
+  /* ---- 위치 ---- */
+  const px = cx + pOA * Math.cos(phase);
+  const py = cy + pOB * Math.sin(phase);
+  const sx = cx - sOA * Math.cos(phase);
+  const sy = cy - sOB * Math.sin(phase);
+  const curVr = vrAt(phase);
+  const obsY = H - 18;
+
+  /* ---- 질량중심 + ---- */
+  ctx.strokeStyle='rgba(255,255,255,.18)'; ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(cx-4,cy);ctx.lineTo(cx+4,cy);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(cx,cy-4);ctx.lineTo(cx,cy+4);ctx.stroke();
+
+  /* ---- 행성 궤도 경로 (실선) ---- */
+  ctx.strokeStyle='rgba(0,229,255,.25)'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.ellipse(cx,cy,pOA,Math.max(pOB,1),0,0,2*Math.PI); ctx.stroke();
+
+  /* ---- 항성 궤도 경로 (노란 점선) ---- */
+  if(sOA > 2.5){
+    ctx.strokeStyle='rgba(255,215,0,.35)'; ctx.lineWidth=1.5; ctx.setLineDash([4,3]);
+    ctx.beginPath(); ctx.ellipse(cx,cy,sOA,Math.max(sOB,1),0,0,2*Math.PI); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  /* ---- 행성 trail (30개, 색상=vr) ---- */
+  for(let i=1;i<=30;i++){
+    const tp=phase-(i/30)*Math.PI*.7;
+    const tx=cx+pOA*Math.cos(tp), ty=cy+pOB*Math.sin(tp);
+    const a=(1-i/30)*.4, r=Math.max(.5, pR*.35*(1-i/30));
+    const tv=vrAt(tp);
+    ctx.fillStyle = tv<0 ? `rgba(80,160,255,${a})` : tv>0 ? `rgba(255,100,80,${a})` : `rgba(150,180,255,${a})`;
+    ctx.beginPath(); ctx.arc(tx,ty,r,0,2*Math.PI); ctx.fill();
+  }
+
+  /* ---- 항성 trail ---- */
+  if(sOA > 3){
+    for(let i=1;i<=20;i++){
+      const tp=phase-(i/20)*Math.PI*.6;
+      const tx=cx-sOA*Math.cos(tp), ty=cy-sOB*Math.sin(tp);
+      const a=(1-i/20)*.25, r=Math.max(.5, starR*.18*(1-i/20));
+      ctx.fillStyle=`rgba(255,200,50,${a})`; ctx.beginPath(); ctx.arc(tx,ty,r,0,2*Math.PI); ctx.fill();
+    }
+  }
+
+  /* ---- 연결선 ---- */
+  ctx.strokeStyle='rgba(255,255,255,.04)'; ctx.lineWidth=.7;
+  ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(px,py); ctx.stroke();
+
+  /* ---- 시선 방향 ---- */
+  ctx.strokeStyle='rgba(255,255,255,.07)'; ctx.lineWidth=1; ctx.setLineDash([5,5]);
+  ctx.beginPath(); ctx.moveTo(cx,cy+Math.max(sOB,pOB)+10); ctx.lineTo(cx,obsY-12); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle='rgba(255,255,255,.12)'; ctx.beginPath();
+  ctx.moveTo(cx,obsY-8);ctx.lineTo(cx-3,obsY-14);ctx.lineTo(cx+3,obsY-14);ctx.closePath();ctx.fill();
+
+  /* ---- 항성 ---- */
+  const glow=ctx.createRadialGradient(sx,sy,starR*.2,sx,sy,starR*3.5);
+  glow.addColorStop(0,'rgba(255,215,0,.25)');glow.addColorStop(.5,'rgba(255,180,0,.04)');glow.addColorStop(1,'rgba(255,150,0,0)');
+  ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(sx,sy,starR*3.5,0,2*Math.PI); ctx.fill();
+  const sg=ctx.createRadialGradient(sx-1,sy-1,1,sx,sy,starR);
+  sg.addColorStop(0,'#ffffee');sg.addColorStop(.6,'#ffd700');sg.addColorStop(1,'#cc8800');
+  ctx.fillStyle=sg; ctx.beginPath(); ctx.arc(sx,sy,starR,0,2*Math.PI); ctx.fill();
+
+  /* ---- 행성 ---- */
+  const vrN = S.vrmax>0 ? Math.min(1,Math.abs(curVr)/S.vrmax) : 0;
+  let pC;
+  if(curVr<-.01) pC=`rgb(${40+30*(1-vrN)|0},${130+125*vrN|0},255)`;
+  else if(curVr>.01) pC=`rgb(255,${120*(1-vrN)|0},${80*(1-vrN)|0})`;
+  else pC='#88aaff';
+  const pGl=ctx.createRadialGradient(px,py,1,px,py,pR*3);
+  pGl.addColorStop(0, curVr<-.01?'rgba(68,136,255,.3)':curVr>.01?'rgba(255,68,68,.3)':'rgba(136,170,255,.12)');
+  pGl.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=pGl; ctx.beginPath(); ctx.arc(px,py,pR*3,0,2*Math.PI); ctx.fill();
+  ctx.fillStyle=pC; ctx.beginPath(); ctx.arc(px,py,pR,0,2*Math.PI); ctx.fill();
+
+  /* ---- 속도벡터: 행성 ---- */
+  const tdx=-Math.sin(phase), tdy=Math.cos(phase)*cosI;
+  const tl=Math.sqrt(tdx*tdx+tdy*tdy)||1;
+  const al=18+Math.min(S.vorb/20000,1)*14;
+  const ntx=tdx/tl, nty=tdy/tl;
+  const ax=px+ntx*al, ay=py+nty*al;
+  ctx.strokeStyle='rgba(0,229,255,.45)'; ctx.lineWidth=1.4;
+  ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(ax,ay);ctx.stroke();
+  const aa=Math.atan2(nty,ntx);
+  ctx.fillStyle='rgba(0,229,255,.45)'; ctx.beginPath(); ctx.moveTo(ax,ay);
+  ctx.lineTo(ax-5*Math.cos(aa-.4),ay-5*Math.sin(aa-.4));
+  ctx.lineTo(ax-5*Math.cos(aa+.4),ay-5*Math.sin(aa+.4));ctx.closePath();ctx.fill();
+
+  /* ---- 속도벡터: 항성 ---- */
+  if(sOA>4){
+    const sal=Math.min(al*.4,sOA*.7);
+    const sex=sx-ntx*sal, sey=sy-nty*sal;
+    ctx.strokeStyle='rgba(255,200,50,.35)'; ctx.lineWidth=1.2;
+    ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(sex,sey);ctx.stroke();
+    const sa=Math.atan2(-nty,-ntx);
+    ctx.fillStyle='rgba(255,200,50,.35)'; ctx.beginPath(); ctx.moveTo(sex,sey);
+    ctx.lineTo(sex-4*Math.cos(sa-.4),sey-4*Math.sin(sa-.4));
+    ctx.lineTo(sex-4*Math.cos(sa+.4),sey-4*Math.sin(sa+.4));ctx.closePath();ctx.fill();
+  }
+
+  /* ---- 관측자 (지구) ---- */
+  const eR=7;
+  const eg=ctx.createRadialGradient(cx-1,obsY-1,1,cx,obsY,eR);
+  eg.addColorStop(0,'#5588ff');eg.addColorStop(.6,'#3366cc');eg.addColorStop(1,'#224488');
+  ctx.fillStyle=eg; ctx.beginPath(); ctx.arc(cx,obsY,eR,0,2*Math.PI); ctx.fill();
+  ctx.fillStyle='rgba(50,180,80,.4)';
+  ctx.beginPath();ctx.arc(cx-1,obsY-1,eR*.33,.3,1.8);ctx.fill();
+  ctx.beginPath();ctx.arc(cx+2,obsY+1,eR*.25,0,2.5);ctx.fill();
+
+  /* ---- 스케일 바 (겉보기 크기 시각화) ---- */
+  const sbX = 12, sbY = H - 50;
+  const angMas = (S.or*AU/(S.dist*pc_m))*(180/Math.PI)*3600*1000;
+  // 스케일 바 길이 = 궤도 지름의 화면 크기
+  const sbLen = pOA * 2;
+  if(sbLen > 10){
+    ctx.strokeStyle='rgba(255,255,255,.2)'; ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(sbX,sbY);ctx.lineTo(sbX+Math.min(sbLen,W-24),sbY);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(sbX,sbY-3);ctx.lineTo(sbX,sbY+3);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(sbX+Math.min(sbLen,W-24),sbY-3);ctx.lineTo(sbX+Math.min(sbLen,W-24),sbY+3);ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,.3)'; ctx.font='9px system-ui'; ctx.textAlign='center';
+    ctx.fillText(angMas.toFixed(1)+' mas ('+S.or.toFixed(2)+' AU @ '+S.dist.toFixed(0)+' pc)', sbX+Math.min(sbLen,W-24)/2, sbY-7);
+  }
+
+  return curVr;
+}
+
+/* ===== 전체 갱신 ===== */
+function upd(){
+  S.sm=parseFloat(sl.sm.value);
+  S.pm=parseFloat(sl.pm.value);
+  S.or=parseFloat(sl.or.value);
+  S.inc=parseInt(sl.inc.value);
+  S.dist=parseFloat(sl.dist.value);
+  const w=document.querySelector('input[name=wl]:checked');
+  if(w) S.lam0=parseFloat(w.value);
+  calc(); updVals(); updWarn();
+}
+
+/* ===== 프리셋 ===== */
+const presets={
+  '51peg':{name:'51 Pegasi b',sm:1.11,pm:0.5,or:0.1,inc:80,dist:15.5,
+    year:1995,disc:'마요르 & 켈로즈',con:'페가수스자리',distance:'50.5 광년',
+    period:'4.23 일',avr:'55.9 m/s',type:'열목성',
+    desc:'인류가 <b>최초로 발견한 태양형 항성 주위의 외계행성</b>. 발견자들은 2019년 <b>노벨 물리학상</b>을 수상했습니다.',
+    sig:'🏆 최초의 외계행성 발견 → 2019 노벨 물리학상'},
+  'hd209':{name:'HD 209458 b',sm:1.15,pm:0.7,or:0.1,inc:86,dist:48.8,
+    year:1999,disc:'데이비드 샤보노 외',con:'페가수스자리',distance:'159 광년',
+    period:'3.52 일',avr:'84.7 m/s',type:'열목성',
+    desc:'<b>최초로 통과(transit) 현상이 관측된</b> 외계행성. <b>최초로 대기 성분(나트륨)</b>이 검출되었습니다.',
+    sig:'🔬 최초의 통과 관측 + 대기 성분 검출'},
+  'trappist':{name:'TRAPPIST-1 b',sm:0.5,pm:0.1,or:0.1,inc:89,dist:12.5,
+    year:2016,disc:'TRAPPIST 팀',con:'물병자리',distance:'40.7 광년',
+    period:'1.51 일',avr:'< 1 m/s',type:'지구형 암석',
+    desc:'태양 질량의 <b>9%</b>인 적색왜성 주위 <b>지구 크기 행성</b>. 7개 행성 중 3개가 생명 거주 가능 영역.',
+    sig:'🌍 7개 지구형 행성, 생명체 거주 후보'}
+};
+function applyPreset(k){
+  const p=presets[k]; if(!p)return;
+  sl.sm.value=p.sm; sl.pm.value=p.pm; sl.or.value=p.or;
+  sl.inc.value=p.inc; sl.dist.value=p.dist;
+  const c=document.getElementById('pic');
+  c.innerHTML='<button class="cb" onclick="this.parentElement.classList.remove(\'on\')" title="닫기">✕</button>'+
+    '<div class="it">🪐 '+p.name+'</div><div class="is">'+p.type+' · '+p.con+' · '+p.distance+'</div>'+
+    '<div style="margin-bottom:4px">'+p.desc+'</div>'+
+    '<div class="ist"><span>발견</span><b>'+p.year+'년</b><span>발견자</span><b>'+p.disc+'</b>'+
+    '<span>주기</span><b>'+p.period+'</b><span>v<sub>r</sub></span><b>'+p.avr+'</b></div>'+
+    '<div class="ig">'+p.sig+'</div>';
+  c.classList.add('on');
+  document.getElementById('cn').style.display='none';
+  document.querySelectorAll('.pbtn').forEach(b=>b.classList.remove('act'));
+  document.querySelector('[data-p="'+k+'"]').classList.add('act');
+  S.phase=0; upd();
+}
+
+/* ===== 이벤트 ===== */
+Object.values(sl).forEach(s=>s.addEventListener('input',()=>{
+  document.querySelectorAll('.pbtn').forEach(b=>b.classList.remove('act'));
+  document.getElementById('pic').classList.remove('on');
+  document.getElementById('cn').style.display='none';
+  upd();
+}));
+document.querySelectorAll('input[name=wl]').forEach(r=>r.addEventListener('change',upd));
+document.querySelectorAll('.pbtn').forEach(b=>b.addEventListener('click',()=>applyPreset(b.dataset.p)));
+
+/* ===== 애니메이션 ===== */
+let lt=0;
+function anim(ts){
+  if(!lt)lt=ts;
+  const dt=Math.min((ts-lt)/1000,.1); lt=ts;
+  S.phase += (2*Math.PI/5)*dt;
+  if(S.phase>1e3*Math.PI) S.phase-=1e3*Math.PI;
+  drawOrbit(); drawRV(); drawSP(vrAt(S.phase));
+  requestAnimationFrame(anim);
+}
+
+let rT;
+window.addEventListener('resize',()=>{clearTimeout(rT);rT=setTimeout(()=>{bgS=null;setupSizes();upd();},150);});
+setupSizes(); upd(); requestAnimationFrame(anim);
+</script>
+</body>
+</html>
