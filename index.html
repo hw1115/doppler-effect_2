@@ -269,100 +269,130 @@ function drawRV(){
   ctx.save();ctx.translate(9,m.t+pH/2);ctx.rotate(-Math.PI/2);ctx.textAlign='center';ctx.fillText('v_r (m/s)',0,0);ctx.restore();
 }
 
-
 function drawSP(curVr){
-  const d=devicePixelRatio||1, W=cS.width/d, H=cS.height/d, ctx=xS;
+  const d=devicePixelRatio||1;
+  const W=cS.width/d;
+  const H=cS.height/d;
+  const ctx=xS;
+
   ctx.setTransform(d,0,0,d,0,0);
 
   ctx.fillStyle='#1a1a3a';
   ctx.fillRect(0,0,W,H);
 
-  const bx=22,bw=W-44,by=12,bh=20;
+  const margin=50;
 
-  // 무지개 스펙트럼 제거
+  const realDl=S.lam0*curVr/c;
+
+  // 시각적 확대 배율
+  const visualAmp=5000;
+
+  const visualDl=realDl*visualAmp;
+  const visualLambda=S.lam0+visualDl;
+
+  const zoomRange=0.01;
+
+  const lambdaMin=S.lam0-zoomRange;
+  const lambdaMax=S.lam0+zoomRange;
+
+  function xFromLambda(l){
+    return margin+
+      ((l-lambdaMin)/(lambdaMax-lambdaMin))
+      *(W-2*margin);
+  }
+
+  // 배경
   ctx.fillStyle='#111122';
-  ctx.fillRect(bx,by,bw,bh);
+  ctx.fillRect(0,0,W,H);
 
-  // 눈금
-  ctx.fillStyle='#8888aa';
-  ctx.font='7px system-ui';
-  ctx.textAlign='center';
+  // 그리드
+  for(let i=-5;i<=5;i++){
+    const l=S.lam0+i*zoomRange/5;
+    const x=xFromLambda(l);
 
-  [400,450,500,550,600,650,700].forEach(l=>{
-    const f=(l-380)/320;
-    const x=bx+f*bw;
-
-    ctx.fillText(l,x,by+bh+9);
-
-    ctx.strokeStyle='rgba(255,255,255,.25)';
-    ctx.lineWidth=.5;
+    ctx.strokeStyle='rgba(255,255,255,0.08)';
+    ctx.lineWidth=1;
 
     ctx.beginPath();
-    ctx.moveTo(x,by+bh);
-    ctx.lineTo(x,by+bh+2);
+    ctx.moveTo(x,15);
+    ctx.lineTo(x,H-40);
     ctx.stroke();
-  });
+  }
 
-  // 기준 파장 위치
-  const l0x=bx+((S.lam0-380)/320)*bw;
+  // 기준선
+  const refX=xFromLambda(S.lam0);
 
-  ctx.strokeStyle='rgba(255,255,255,.35)';
-  ctx.lineWidth=1;
-  ctx.setLineDash([2,2]);
-
-  ctx.beginPath();
-  ctx.moveTo(l0x,by);
-  ctx.lineTo(l0x,by+bh);
-  ctx.stroke();
-
-  ctx.setLineDash([]);
-
-  // 도플러 편이
-  const dln=S.lam0*curVr/c;
-  const cl=S.lam0+dln;
-
-  const mkx=bx+Math.max(
-    0,
-    Math.min(1,(cl-380)/320)
-  )*bw;
-
-  const mc=
-    curVr<-.01 ? '#4488ff' :
-    curVr>.01 ? '#ff4444' :
-    '#ffffff';
-
-  // 화살표
-  ctx.fillStyle=mc;
-  ctx.beginPath();
-  ctx.moveTo(mkx,by-1);
-  ctx.lineTo(mkx-4,by-7);
-  ctx.lineTo(mkx+4,by-7);
-  ctx.closePath();
-  ctx.fill();
-
-  // 스펙트럼 선
-  ctx.strokeStyle=mc;
+  ctx.strokeStyle='rgba(255,255,255,0.5)';
   ctx.lineWidth=2;
 
   ctx.beginPath();
-  ctx.moveTo(mkx,by);
-  ctx.lineTo(mkx,by+bh);
+  ctx.moveTo(refX,15);
+  ctx.lineTo(refX,H-40);
   ctx.stroke();
 
-  const dir=
-    curVr<-.01 ? '◀ 청색편이' :
-    curVr>.01 ? '적색편이 ▶' :
-    '편이 없음';
+  // 이동선
+  const shiftedX=xFromLambda(visualLambda);
+
+  // 빨강/파랑 제거
+  const color='#ffffff';
+
+  ctx.strokeStyle=color;
+  ctx.lineWidth=7;
+
+  ctx.beginPath();
+  ctx.moveTo(shiftedX,15);
+  ctx.lineTo(shiftedX,H-40);
+  ctx.stroke();
+
+  // 화살표
+  ctx.fillStyle=color;
+
+  ctx.beginPath();
+  ctx.moveTo(shiftedX,8);
+  ctx.lineTo(shiftedX-7,0);
+  ctx.lineTo(shiftedX+7,0);
+  ctx.closePath();
+  ctx.fill();
+
+  // 눈금
+  ctx.fillStyle='#aaa';
+  ctx.font='11px sans-serif';
+  ctx.textAlign='center';
+
+  for(let i=-5;i<=5;i++){
+    const l=S.lam0+i*zoomRange/5;
+    const x=xFromLambda(l);
+
+    ctx.fillText(
+      l.toFixed(3),
+      x,
+      H-15
+    );
+  }
+
+  // 범례
+  ctx.fillStyle='#8888aa';
+  ctx.font='12px sans-serif';
+
+  ctx.fillText(
+    '도플러 편이 확대 표시 (×5000)',
+    W/2,
+    H-30
+  );
+
+  const dir='도플러 편이';
 
   document.getElementById('sp-lbl').innerHTML=
-    '파장: <b style="color:'+mc+'">'+
-    cl.toFixed(4)+
-    ' nm</b> (Δλ '+
-    dln.toExponential(3)+
-    ' nm) <span style="color:'+mc+'">'+
-    dir+
-    '</span>';
+      `실제 λ =
+      <b style="color:${color}">
+      ${(S.lam0+realDl).toFixed(6)} nm
+      </b>
+      (Δλ ${realDl.toExponential(3)} nm)
+      <span style="color:${color}">
+      ${dir}
+      </span>`;
 }
+
 /* ===== 궤도 애니메이션 ===== */
 let bgS=null;
 function mkBg(W,H){
