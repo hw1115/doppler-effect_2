@@ -379,10 +379,7 @@ function drawSP(curVr){
     H-30
   );
 
-  const dir=
-      curVr<-.01 ? '◀ 청색편이' :
-      curVr>.01 ? '적색편이 ▶' :
-      '편이 없음';
+  const dir='도플러 편이';
 
   document.getElementById('sp-lbl').innerHTML=
       `실제 λ =
