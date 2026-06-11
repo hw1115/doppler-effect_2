@@ -120,7 +120,8 @@ input[type=range]::-moz-range-thumb{width:15px;height:15px;border-radius:50%;bac
     <div class="ptitle">📈 관측 데이터 분석</div>
     <div class="gs"><div class="gt">시선속도 곡선</div><canvas id="canvas-rv"></canvas></div>
     <div class="gs"><div class="gt">항성 스펙트럼 도플러 편이</div><canvas id="canvas-sp"></canvas>
-      <div id="sp-lbl" style="font-size:.66rem;color:var(--dim);margin-top:3px;text-align:center">—</div></div>
+      <div id="sp-lbl" style="font-size:.64rem;color:var(--dim);margin-top:3px;text-align:center">—</div>
+      <div id="sp-lbl2" style="font-size:.62rem;color:var(--dim);margin-top:1px;text-align:center">—</div></div>
     <div class="gs">
       <div class="gt">물리량 요약</div>
       <table class="vals-table">
@@ -178,8 +179,8 @@ function setupSizes(){
   cR.style.width=rw+'px'; cR.style.height='170px';
   cR.width=Math.round(rw*d); cR.height=Math.round(170*d);
   const sw=cS.parentElement.getBoundingClientRect().width;
-  cS.style.width=sw+'px'; cS.style.height='60px';
-  cS.width=Math.round(sw*d); cS.height=Math.round(60*d);
+  cS.style.width=sw+'px'; cS.style.height='110px';
+  cS.width=Math.round(sw*d); cS.height=Math.round(110*d);
 }
 
 /* ===== 물리 계산 ===== */
@@ -268,32 +269,187 @@ function drawRV(){
   ctx.save();ctx.translate(9,m.t+pH/2);ctx.rotate(-Math.PI/2);ctx.textAlign='center';ctx.fillText('v_r (m/s)',0,0);ctx.restore();
 }
 
-/* ===== 스펙트럼 ===== */
+/* ===== 스펙트럼 (기준 파장 확대 뷰) ===== */
 function drawSP(curVr){
   const d=devicePixelRatio||1, W=cS.width/d, H=cS.height/d, ctx=xS;
   ctx.setTransform(d,0,0,d,0,0);
-  ctx.fillStyle='#1a1a3a';ctx.fillRect(0,0,W,H);
-  const bx=22,bw=W-44,by=12,bh=20;
-  const gr=ctx.createLinearGradient(bx,0,bx+bw,0);
-  gr.addColorStop(0,'#380082');gr.addColorStop(.12,'#4400ff');gr.addColorStop(.22,'#0044ff');
-  gr.addColorStop(.31,'#00ccff');gr.addColorStop(.4,'#00ff44');gr.addColorStop(.53,'#88ff00');
-  gr.addColorStop(.62,'#ffff00');gr.addColorStop(.72,'#ff8800');gr.addColorStop(.84,'#ff2200');gr.addColorStop(1,'#700000');
-  ctx.fillStyle=gr;ctx.fillRect(bx,by,bw,bh);
-  ctx.fillStyle='#8888aa';ctx.font='7px system-ui';ctx.textAlign='center';
-  [400,450,500,550,600,650,700].forEach(l=>{
-    const f=(l-380)/320,x=bx+f*bw;ctx.fillText(l,x,by+bh+9);
-    ctx.strokeStyle='rgba(255,255,255,.25)';ctx.lineWidth=.5;ctx.beginPath();ctx.moveTo(x,by+bh);ctx.lineTo(x,by+bh+2);ctx.stroke();
-  });
-  const l0x=bx+((S.lam0-380)/320)*bw;
-  ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=1;ctx.setLineDash([2,2]);
-  ctx.beginPath();ctx.moveTo(l0x,by);ctx.lineTo(l0x,by+bh);ctx.stroke();ctx.setLineDash([]);
-  const dln=S.lam0*curVr/c, cl=S.lam0+dln;
-  const mkx=bx+Math.max(0,Math.min(1,(cl-380)/320))*bw;
-  const mc=curVr<-.01?'#4488ff':(curVr>.01?'#ff4444':'#fff');
-  ctx.fillStyle=mc;ctx.beginPath();ctx.moveTo(mkx,by-1);ctx.lineTo(mkx-4,by-7);ctx.lineTo(mkx+4,by-7);ctx.closePath();ctx.fill();
-  ctx.strokeStyle=mc;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(mkx,by);ctx.lineTo(mkx,by+bh);ctx.stroke();
-  const dir=curVr<-.01?'◀ 청색편이':(curVr>.01?'적색편이 ▶':'편이 없음');
-  document.getElementById('sp-lbl').innerHTML='파장: <b style="color:'+mc+'">'+cl.toFixed(4)+' nm</b> (Δλ '+dln.toExponential(3)+' nm) <span style="color:'+mc+'">'+dir+'</span>';
+  ctx.fillStyle='#1a1a3a'; ctx.fillRect(0,0,W,H);
+
+  const pad={l:40, r:16, t:10, b:24};
+  const bw=W-pad.l-pad.r;
+
+  /* ---- 현재 도플러 편이 계산 ---- */
+  const dlNow = S.lam0 * curVr / c;   // 현재 편이 (nm)
+  const dlMax = S.lam0 * S.vrmax / c;  // 최대 편이 (nm)
+  const curLam = S.lam0 + dlNow;
+
+  /* ---- 확대 창 범위 결정 ----
+     기준 파장 ± viewHalf 범위를 화면 전체에 매핑
+     viewHalf = dlMax * 2 (최대 편이의 2배 여유)
+     최소 범위를 두어 vrmax=0이어도 의미 있는 폭 유지 */
+  const viewHalf = Math.max(dlMax * 2.5, 1e-5);
+  const lamMin = S.lam0 - viewHalf;
+  const lamMax = S.lam0 + viewHalf;
+
+  /* ---- 파장 → 화면 x 변환 함수 ---- */
+  const lam2x = (lam) => pad.l + ((lam - lamMin) / (lamMax - lamMin)) * bw;
+
+  /* ---- 상단: 전체 스펙트럼 미니 바 (컨텍스트용, 얇게) ---- */
+  const miniY=pad.t, miniH=8;
+  const miniGr=ctx.createLinearGradient(pad.l,0,pad.l+bw,0);
+  // 현재 확대 범위의 색상 계산
+  function lamToColor(lam){
+    if(lam<380) return '#200044';
+    if(lam>700) return '#400000';
+    const t=(lam-380)/320;
+    // 간이 스펙트럼 색상
+    if(t<.12) return `hsl(${270+t/.12*30},100%,${20+t/.12*30}%)`;
+    if(t<.22) return `hsl(${240},100%,50%)`;
+    if(t<.31) return `hsl(${240-(t-.22)/.09*40},100%,50%)`;
+    if(t<.40) return `hsl(${180-(t-.31)/.09*60},100%,50%)`;
+    if(t<.53) return `hsl(${120},100%,50%)`;
+    if(t<.62) return `hsl(${120-(t-.53)/.09*60},100%,50%)`;
+    if(t<.72) return `hsl(${60-(t-.62)/.10*30},100%,50%)`;
+    if(t<.84) return `hsl(${30-(t-.72)/.12*20},100%,45%)`;
+    return `hsl(${0},100%,${45-(t-.84)/.16*25}%)`;
+  }
+  for(let px=0;px<bw;px++){
+    const lam = lamMin + (px/bw)*(lamMax-lamMin);
+    ctx.fillStyle = lamToColor(lam);
+    ctx.fillRect(pad.l+px, miniY, 1, miniH);
+  }
+  ctx.strokeStyle='rgba(255,255,255,.15)'; ctx.lineWidth=0.5;
+  ctx.strokeRect(pad.l, miniY, bw, miniH);
+
+  /* ---- 하단: 확대된 흡수선 시뮬레이션 ---- */
+  const plotY = miniY + miniH + 8;
+  const plotH = H - plotY - pad.b;
+
+  /* 배경: 연속 스펙트럼 (밝기=1) + 기준파장에서 흡수선 (가우시안 딥) */
+  // 흡수선 프로파일: I(λ) = 1 - depth * exp(-(λ-λ_shifted)² / (2σ²))
+  const lineWidth = viewHalf * 0.08; // 흡수선 폭 (σ)
+  const shiftedLam = curLam;
+  const restLam = S.lam0;
+
+  // 연속 스펙트럼 밝기 그라디언트 배경
+  for(let px=0;px<bw;px++){
+    const lam = lamMin + (px/bw)*(lamMax-lamMin);
+    ctx.fillStyle = lamToColor(lam);
+    // 밝기: 흡수선에서 어두워짐
+    const distFromLine = (lam - shiftedLam) / lineWidth;
+    const absorption = 0.85 * Math.exp(-0.5 * distFromLine * distFromLine);
+    const brightness = 1 - absorption;
+    ctx.globalAlpha = brightness * 0.7 + 0.05;
+    ctx.fillRect(pad.l+px, plotY, 1, plotH);
+  }
+  ctx.globalAlpha = 1;
+
+  /* ---- 흡수선 프로파일 곡선 ---- */
+  // 편이된 흡수선 (빨간/파란)
+  const shiftColor = curVr < -0.01 ? '#4488ff' : curVr > 0.01 ? '#ff4444' : '#ffffff';
+  ctx.strokeStyle = shiftColor; ctx.lineWidth = 2;
+  ctx.beginPath();
+  for(let px=0;px<=bw;px++){
+    const lam = lamMin + (px/bw)*(lamMax-lamMin);
+    const dist = (lam - shiftedLam) / lineWidth;
+    const profile = 1 - 0.85 * Math.exp(-0.5 * dist * dist);
+    const y = plotY + (1 - profile) * plotH;
+    px===0 ? ctx.moveTo(pad.l+px, y) : ctx.lineTo(pad.l+px, y);
+  }
+  ctx.stroke();
+
+  // 정지 흡수선 위치 (흰색 점선 — 원래 위치)
+  ctx.strokeStyle = 'rgba(255,255,255,.3)'; ctx.lineWidth = 1; ctx.setLineDash([3,3]);
+  ctx.beginPath();
+  for(let px=0;px<=bw;px++){
+    const lam = lamMin + (px/bw)*(lamMax-lamMin);
+    const dist = (lam - restLam) / lineWidth;
+    const profile = 1 - 0.85 * Math.exp(-0.5 * dist * dist);
+    const y = plotY + (1 - profile) * plotH;
+    px===0 ? ctx.moveTo(pad.l+px, y) : ctx.lineTo(pad.l+px, y);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  /* ---- 기준 파장 세로선 ---- */
+  const x0 = lam2x(restLam);
+  ctx.strokeStyle='rgba(255,255,255,.2)'; ctx.lineWidth=1; ctx.setLineDash([2,3]);
+  ctx.beginPath(); ctx.moveTo(x0,plotY); ctx.lineTo(x0,plotY+plotH); ctx.stroke();
+  ctx.setLineDash([]);
+
+  /* ---- 편이된 파장 세로선 ---- */
+  const xShift = lam2x(shiftedLam);
+  ctx.strokeStyle = shiftColor; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(xShift, plotY); ctx.lineTo(xShift, plotY+plotH); ctx.stroke();
+
+  /* ---- 편이 화살표 (기준→편이) ---- */
+  if(Math.abs(xShift - x0) > 2){
+    const arrowY = plotY + plotH + 6;
+    ctx.strokeStyle = shiftColor; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(x0, arrowY); ctx.lineTo(xShift, arrowY); ctx.stroke();
+    // 화살촉
+    const dir2 = xShift > x0 ? 1 : -1;
+    ctx.fillStyle = shiftColor; ctx.beginPath();
+    ctx.moveTo(xShift, arrowY);
+    ctx.lineTo(xShift - dir2*5, arrowY-3);
+    ctx.lineTo(xShift - dir2*5, arrowY+3);
+    ctx.closePath(); ctx.fill();
+    // Δλ 텍스트
+    ctx.fillStyle = shiftColor; ctx.font='9px system-ui'; ctx.textAlign='center';
+    ctx.fillText('Δλ', (x0+xShift)/2, arrowY-4);
+  }
+
+  /* ---- 눈금 ---- */
+  ctx.fillStyle='#8888aa'; ctx.font='8px system-ui'; ctx.textAlign='center';
+  // 적절한 눈금 간격 계산
+  const range = lamMax - lamMin;
+  let tickStep;
+  if(range > 0.1) tickStep = 0.05;
+  else if(range > 0.01) tickStep = 0.005;
+  else if(range > 0.001) tickStep = 0.0005;
+  else if(range > 0.0001) tickStep = 0.00005;
+  else tickStep = 0.000005;
+
+  const firstTick = Math.ceil(lamMin / tickStep) * tickStep;
+  for(let lam=firstTick; lam<=lamMax; lam+=tickStep){
+    const x = lam2x(lam);
+    if(x < pad.l+5 || x > pad.l+bw-5) continue;
+    ctx.fillStyle='#8888aa';
+    ctx.strokeStyle='rgba(255,255,255,.12)'; ctx.lineWidth=.5;
+    ctx.beginPath();ctx.moveTo(x,plotY+plotH);ctx.lineTo(x,plotY+plotH+3);ctx.stroke();
+    // 소수점 자릿수 결정
+    let decimals = Math.max(0, -Math.floor(Math.log10(tickStep)));
+    ctx.fillText(lam.toFixed(decimals), x, plotY+plotH+12);
+  }
+  // 축 라벨
+  ctx.fillText('nm', pad.l+bw+8, plotY+plotH+12);
+
+  /* Y축: 강도 */
+  ctx.fillStyle='#666'; ctx.font='7px system-ui'; ctx.textAlign='right';
+  ctx.fillText('1.0', pad.l-4, plotY+5);
+  ctx.fillText('0', pad.l-4, plotY+plotH+3);
+  ctx.save(); ctx.translate(8, plotY+plotH/2); ctx.rotate(-Math.PI/2);
+  ctx.textAlign='center'; ctx.fillText('강도',0,0); ctx.restore();
+
+  /* ---- 범례 ---- */
+  ctx.font='8px Noto Sans KR, system-ui'; ctx.textAlign='left';
+  const legY = miniY + 2;
+  ctx.strokeStyle='rgba(255,255,255,.3)'; ctx.lineWidth=1; ctx.setLineDash([3,3]);
+  ctx.beginPath();ctx.moveTo(pad.l+bw-90,legY);ctx.lineTo(pad.l+bw-75,legY);ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle='#999'; ctx.fillText('정지',pad.l+bw-72,legY+3);
+  ctx.strokeStyle=shiftColor; ctx.lineWidth=2; ctx.beginPath();
+  ctx.moveTo(pad.l+bw-48,legY);ctx.lineTo(pad.l+bw-33,legY);ctx.stroke();
+  ctx.fillStyle=shiftColor; ctx.fillText('편이',pad.l+bw-30,legY+3);
+
+  /* ---- 텍스트 라벨 ---- */
+  const dirStr = curVr < -0.01 ? '◀ 청색편이' : curVr > 0.01 ? '적색편이 ▶' : '편이 없음';
+  document.getElementById('sp-lbl').innerHTML =
+    '관측 파장: <b style="color:'+shiftColor+'">'+curLam.toFixed(6)+' nm</b> '+
+    '<span style="color:'+shiftColor+'">'+dirStr+'</span>';
+  document.getElementById('sp-lbl2').innerHTML =
+    'Δλ = <b style="color:'+shiftColor+'">'+dlNow.toExponential(4)+' nm</b>'+
+    ' | λ₀ = '+S.lam0+' nm | 확대 범위: ±'+viewHalf.toExponential(2)+' nm';
 }
 
 /* ===== 궤도 애니메이션 ===== */
@@ -347,7 +503,7 @@ function drawOrbit(){
   const sx = cx - sOA * Math.cos(phase);
   const sy = cy - sOB * Math.sin(phase);
   const curVr = vrAt(phase);
-  const obsY = H - 80;
+  const obsY = H - 40;
 
   /* ---- 질량중심 + ---- */
   ctx.strokeStyle='rgba(255,255,255,.18)'; ctx.lineWidth=1;
@@ -542,3 +698,4 @@ setupSizes(); upd(); requestAnimationFrame(anim);
 </script>
 </body>
 </html>
+ㅌ
