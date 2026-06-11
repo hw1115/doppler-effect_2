@@ -269,21 +269,17 @@ function drawRV(){
   ctx.save();ctx.translate(9,m.t+pH/2);ctx.rotate(-Math.PI/2);ctx.textAlign='center';ctx.fillText('v_r (m/s)',0,0);ctx.restore();
 }
 
+
 function drawSP(curVr){
   const d=devicePixelRatio||1, W=cS.width/d, H=cS.height/d, ctx=xS;
-
   ctx.setTransform(d,0,0,d,0,0);
 
-  // 전체 배경
   ctx.fillStyle='#1a1a3a';
   ctx.fillRect(0,0,W,H);
 
-  const bx=22;
-  const bw=W-44;
-  const by=12;
-  const bh=20;
+  const bx=22,bw=W-44,by=12,bh=20;
 
-  // 기존 무지개 스펙트럼 대신 단색 배경
+  // 무지개 스펙트럼 제거
   ctx.fillStyle='#111122';
   ctx.fillRect(bx,by,bw,bh);
 
@@ -337,7 +333,6 @@ function drawSP(curVr){
 
   // 화살표
   ctx.fillStyle=mc;
-
   ctx.beginPath();
   ctx.moveTo(mkx,by-1);
   ctx.lineTo(mkx-4,by-7);
