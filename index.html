@@ -269,30 +269,73 @@ function drawRV(){
 }
 
 /* ===== 스펙트럼 ===== */
+/* ===== 스펙트럼 그리기 함수 수정본 ===== */
 function drawSP(curVr){
   const d=devicePixelRatio||1, W=cS.width/d, H=cS.height/d, ctx=xS;
   ctx.setTransform(d,0,0,d,0,0);
   ctx.fillStyle='#1a1a3a';ctx.fillRect(0,0,W,H);
-  const bx=22,bw=W-44,by=12,bh=20;
+  
+  const bx=22, bw=W-44, by=12, bh=20;
+  
+  // 1. [확대 효과] 기준 파장 주변만 확대해서 보기 (폭을 320nm에서 20nm로 줄임)
+  const zoomWindow = 10; // 기준 파장 중심 좌우 10nm 총 20nm만 표시
+  const wMin = S.lam0 - zoomWindow;
+  const wMax = S.lam0 + zoomWindow;
+
+  // 확대된 영역에 맞는 그라데이션 재계산
   const gr=ctx.createLinearGradient(bx,0,bx+bw,0);
-  gr.addColorStop(0,'#380082');gr.addColorStop(.12,'#4400ff');gr.addColorStop(.22,'#0044ff');
-  gr.addColorStop(.31,'#00ccff');gr.addColorStop(.4,'#00ff44');gr.addColorStop(.53,'#88ff00');
-  gr.addColorStop(.62,'#ffff00');gr.addColorStop(.72,'#ff8800');gr.addColorStop(.84,'#ff2200');gr.addColorStop(1,'#700000');
+  for(let l=wMin; l<=wMax; l+=(wMax-wMin)/10) {
+    const pct = (l-wMin)/(wMax-wMin);
+    // 원래 가시광선 위치(380~700)에서의 비율을 계산해 부드러운 색상 유지
+    const origPct = Math.max(0, Math.min(1, (l-380)/320));
+    
+    // 단순화된 색상 매핑 (기존 그라데이션과 유사하게 픽셀별 색상 지정 가능)
+    let color = '#fff';
+    if(origPct < 0.15) color='#4400ff';
+    else if(origPct < 0.3) color='#0044ff';
+    else if(origPct < 0.45) color='#00ccff';
+    else if(origPct < 0.6) color='#00ff44';
+    else if(origPct < 0.75) color='#ffff00';
+    else color='#ff2200';
+    
+    gr.addColorStop(pct, color);
+  }
+  
   ctx.fillStyle=gr;ctx.fillRect(bx,by,bw,bh);
+  
+  // 눈금 표시 (확대된 파장에 맞게 변형)
   ctx.fillStyle='#8888aa';ctx.font='7px system-ui';ctx.textAlign='center';
-  [400,450,500,550,600,650,700].forEach(l=>{
-    const f=(l-380)/320,x=bx+f*bw;ctx.fillText(l,x,by+bh+9);
-    ctx.strokeStyle='rgba(255,255,255,.25)';ctx.lineWidth=.5;ctx.beginPath();ctx.moveTo(x,by+bh);ctx.lineTo(x,by+bh+2);ctx.stroke();
-  });
-  const l0x=bx+((S.lam0-380)/320)*bw;
+  for(let l=Math.ceil(wMin); l<=Math.floor(wMax); l++) {
+    if(l % 5 === 0) { // 5nm 단위로 눈금 표시
+      const f=(l-wMin)/(wMax-wMin);
+      const x=bx+f*bw;
+      ctx.fillText(l,x,by+bh+9);
+      ctx.strokeStyle='rgba(255,255,255,.25)';ctx.lineWidth=.5;
+      ctx.beginPath();ctx.moveTo(x,by+bh);ctx.lineTo(x,by+bh+2);ctx.stroke();
+    }
+  }
+
+  // 원래 기준 파장선 (중앙에 위치하게 됨)
+  const l0x = bx + 0.5 * bw;
   ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=1;ctx.setLineDash([2,2]);
   ctx.beginPath();ctx.moveTo(l0x,by);ctx.lineTo(l0x,by+bh);ctx.stroke();ctx.setLineDash([]);
-  const dln=S.lam0*curVr/c, cl=S.lam0+dln;
-  const mkx=bx+Math.max(0,Math.min(1,(cl-380)/320))*bw;
-  const mc=curVr<-.01?'#4488ff':(curVr>.01?'#ff4444':'#fff');
-  ctx.fillStyle=mc;ctx.beginPath();ctx.moveTo(mkx,by-1);ctx.lineTo(mkx-4,by-7);ctx.lineTo(mkx+4,by-7);ctx.closePath();ctx.fill();
-  ctx.strokeStyle=mc;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(mkx,by);ctx.lineTo(mkx,by+bh);ctx.stroke();
-  const dir=curVr<-.01?'◀ 청색편이':(curVr>.01?'적색편이 ▶':'편이 없음');
+
+  // 2. [역동성 증폭] 실제 편이량에 시각적 증폭 계수(예: 20,000배)를 곱함
+  const visualAmplifier = 20000; 
+  const dln = S.lam0 * curVr / c; // 실제 물리적 편이량
+  const visualDln = dln * visualAmplifier; // 시각적으로 뻥튀기한 편이량
+  const cl = S.lam0 + dln; // 텍스트 표기는 실제 물리 값 유지
+  
+  // 흡수선 마커 위치 계산 (확대된 창 기준)
+  const markerWavelength = S.lam0 + visualDln;
+  const mkx = bx + ((markerWavelength - wMin) / (wMax - wMin)) * bw;
+  const clampedMkx = Math.max(bx, Math.min(bx+bw, mkx));
+
+  const mc = curVr<-.01?'#4488ff':(curVr>.01?'#ff4444':'#fff');
+  ctx.fillStyle=mc;ctx.beginPath();ctx.moveTo(clampedMkx,by-1);ctx.lineTo(clampedMkx-4,by-7);ctx.lineTo(clampedMkx+4,by-7);ctx.closePath();ctx.fill();
+  ctx.strokeStyle=mc;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(clampedMkx,by);ctx.lineTo(clampedMkx,by+bh);ctx.stroke();
+  
+  const dir = curVr<-.01?'◀ 청색편이':(curVr>.01?'적색편이 ▶':'편이 없음');
   document.getElementById('sp-lbl').innerHTML='파장: <b style="color:'+mc+'">'+cl.toFixed(4)+' nm</b> (Δλ '+dln.toExponential(3)+' nm) <span style="color:'+mc+'">'+dir+'</span>';
 }
 
