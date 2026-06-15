@@ -190,7 +190,9 @@ function calc(){
   S.vrmax = S.vorb*(mp/Ms)*Math.sin(iR);
   S.dl = S.lam0*S.vrmax/c;
 }
-function vrAt(th){ return S.vrmax*Math.sin(th); }
+function vrAt(th){
+  return -S.vrmax*Math.cos(th);
+}
 
 /* ===== UI 갱신 ===== */
 function updVals(){
